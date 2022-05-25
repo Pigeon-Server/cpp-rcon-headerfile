@@ -6,13 +6,8 @@
 #include <utility>
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#include <iostream>
-#include <vector>
 
 using namespace std;
-
-HANDLE console_handle;
-typedef unsigned char uint8_t;
 
 struct rconpacket
 {
@@ -25,8 +20,7 @@ struct rconpacket
 class rconclient
 {
 public:
-    rconclient(const char* hostname,const char* hostport,const char* passwd,int disablecolor = 0):
-    hostname(hostname),hostport(hostport),passwd(passwd),disablecolors(disablecolor){}
+    rconclient(const char* hostname,const char* hostport,const char* passwd):hostname(hostname),hostport(hostport),passwd(passwd){}
     int rconauth() {
         rsock = net_connect();
         int tempdata;
@@ -72,32 +66,11 @@ public:
         return (char*)"1";
     }
 private:
-    static void print_color(int color)
-    {
-        if (color >= 0x61 && color <= 0x66)
-        {
-            color -= 0x57;
-        }
-        else if (color >= 0x30 && color <= 0x39)
-        {
-            color -= 0x30;
-        }
-        else if (color == 0x6e)
-        {
-            color = 16;
-        }
-        else
-        {
-            return;
-        }
-        SetConsoleTextAttribute(console_handle, color);
-    }
     rconpacket* netrecvpacket(int socket)
     {
         int packetsize;
         rconpacket packet = {0, 0, 0, {0x00}};
         int tempdata = recv(socket, (char *)&packetsize, sizeof(int), 0);
-        cout << "netrecvpacket" << tempdata << endl;
         if (tempdata == 0)
         {
             printf("连接已丢失\n");
@@ -241,5 +214,4 @@ private:
     const char *passwd;
     int rsock{};
     int connect_alive = 0;
-    int disablecolors = 0;
 };
