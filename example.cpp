@@ -7,7 +7,6 @@ using namespace std;
 
 int main()
 {
-    auto rcon = new rconclient("127.0.0.1",1337,"test");
-
-
+    auto rcon = new rconclient("127.0.0.1","1337","test");
+    rcon->net_connect();
 }
