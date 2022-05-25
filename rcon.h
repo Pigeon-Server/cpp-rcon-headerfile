@@ -6,8 +6,13 @@
 #include <utility>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <iostream>
+#include <vector>
 
 using namespace std;
+
+HANDLE console_handle;
+typedef unsigned char uint8_t;
 
 struct rconpacket
 {
@@ -20,7 +25,160 @@ struct rconpacket
 class rconclient
 {
 public:
-    rconclient(const char* hostname,const char* hostport,const char* passwd):hostname(hostname),hostport(hostport),passwd(passwd){}
+    rconclient(const char* hostname,const char* hostport,const char* passwd,int disablecolor = 0):
+    hostname(hostname),hostport(hostport),passwd(passwd),disablecolors(disablecolor){}
+    int rconauth() {
+        rsock = net_connect();
+        int tempdata;
+        rconpacket *packet = packet_build(0xBADC0DE, 3, (char*)passwd);
+        if (packet == nullptr) {
+            return 0;
+        }
+        tempdata = netsendpacket(rsock, packet);
+        if (!tempdata) {
+            return 0;
+        }
+        packet = netrecvpacket(rsock);
+        if (packet == nullptr) {
+            return 0;
+        }
+        return packet->id == -1 ? 0 : 1;
+    }
+    char* rcon_command(char *command)
+    {
+        rconpacket *packet = packet_build(0xBADC0DE, 2, command);
+        if (packet == nullptr)
+        {
+            connect_alive = 0;
+            return (char*)"0";
+        }
+        int tempdata = netsendpacket(rsock, packet);
+        if (!tempdata) {
+            return (char*)"0";
+        }
+        packet = netrecvpacket(rsock);
+        if (packet == nullptr)
+        {
+            return (char*)"0";
+        }
+        if (packet->id != 0xBADC0DE)
+        {
+            return (char*)"0";
+        }
+        if (packet->size > 10)
+        {
+            return packet->data;
+        }
+        return (char*)"1";
+    }
+private:
+    static void print_color(int color)
+    {
+        if (color >= 0x61 && color <= 0x66)
+        {
+            color -= 0x57;
+        }
+        else if (color >= 0x30 && color <= 0x39)
+        {
+            color -= 0x30;
+        }
+        else if (color == 0x6e)
+        {
+            color = 16;
+        }
+        else
+        {
+            return;
+        }
+        SetConsoleTextAttribute(console_handle, color);
+    }
+    rconpacket* netrecvpacket(int socket)
+    {
+        int packetsize;
+        rconpacket packet = {0, 0, 0, {0x00}};
+        int tempdata = recv(socket, (char *)&packetsize, sizeof(int), 0);
+        cout << "netrecvpacket" << tempdata << endl;
+        if (tempdata == 0)
+        {
+            printf("连接已丢失\n");
+            connect_alive = 0;
+            return nullptr;
+        }
+        if (tempdata != sizeof(int))
+        {
+            printf("错误:接收失败。无效的数据包大小(%d)\n", tempdata);
+            connect_alive = 0;
+            return nullptr;
+        }
+        if (packetsize < 10 || packetsize > 4096)
+        {
+            printf("警告:无效数据包大小(%d)。必须大于10且小于%d.\n", packetsize, 4096);
+            if (packetsize > 4096 || packetsize < 0)
+                packetsize = 4096;
+            net_clean_incoming(socket, packetsize);
+            return nullptr;
+        }
+        packet.size = packetsize;
+        int received = 0;
+        while (received < packetsize)
+        {
+            tempdata = recv(socket, (char *)&packet + sizeof(int) + received, packetsize - received, 0);
+            if (tempdata == 0)
+            {
+                printf("连接已丢失\n");
+                connect_alive = 0;
+                return nullptr;
+            }
+            received += tempdata;
+        }
+        rconpacket* ret = &packet;
+        return ret;
+    }
+    int net_clean_incoming(int socket, int size)
+    {
+        char data[size];
+        int tempdata = recv(socket, data, size, 0);
+        if (tempdata == 0)
+        {
+            printf("连接已丢失\n");
+            connect_alive = 0;
+        }
+        return tempdata;
+    }
+    static int netsendpacket(int socket, rconpacket *packet)
+    {
+        int len;
+        int total = 0;
+        int byte;
+        int tempdata = -1;
+        byte = len = packet->size + sizeof(int);
+        while (total < len)
+        {
+            tempdata = send(socket, (char *)packet + total, byte, 0);
+            if (tempdata == -1)
+            {
+                break;
+            }
+            total += tempdata;
+            byte -= tempdata;
+        }
+        return tempdata == -1 ? -1 : 1;
+    }
+    static rconpacket *packet_build(int id, int cmd, char *s1)
+    {
+        static rconpacket packet = {0, 0, 0, {0x00}};
+        int len = strlen(s1);
+        if (len >= 4096)
+        {
+            printf("指令过长(%d)最大长度为: %d.\n", len, 4096 - 1);
+            return nullptr;
+        }
+        packet.size = sizeof(int) * 2 + len + 2;
+        packet.id = id;
+        packet.cmdnum = cmd;
+        strncpy(packet.data, s1, 4096 - 1);
+        return &packet;
+    }
     int net_connect()
     {
         int tempdata;
@@ -62,7 +220,6 @@ public:
         freeaddrinfo(server_info);
         return tempdata;
     }
-private:
     static void net_init_WSA()
     {
         WSADATA wsadata;
@@ -74,21 +231,6 @@ private:
             exit(1);
         }
     }
-    void sighandler(int signal)
-    {
-        if (signal == 2)
-        {
-            putchar('\n');
-        }
-        connect_alive = 0;
-    }
-    void exit_proc() const
-    {
-        if (rsock != -1)
-        {
-            net_close(rsock);
-        }
-    }
     static void net_close(int input)
     {
         closesocket(input);
@@ -96,7 +238,8 @@ private:
     }
     const char* hostname;
     const char *hostport;
-    string passwd;
+    const char *passwd;
     int rsock{};
     int connect_alive = 0;
+    int disablecolors = 0;
 };

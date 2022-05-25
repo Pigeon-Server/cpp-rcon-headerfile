@@ -1,0 +1,1 @@
+g++ example.cpp -lwsock32 -lws2_32
