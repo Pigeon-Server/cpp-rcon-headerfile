@@ -33,7 +33,7 @@ rcon.password=your_rcon_pasword
 ```
 
 ## Compile and operation  
-下载build.bat文件，正确配置g++路径即可一件编译  
+下载build.bat文件，正确配置g++路径即可一键编译  
 或者你可以手动在编译时加上-lwsock32 -lws2_32这两个参数  
 
 ## Existing problems  
