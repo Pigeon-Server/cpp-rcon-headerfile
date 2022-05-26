@@ -37,6 +37,6 @@ rcon.password=your_rcon_pasword
 或者你可以手动在编译时加上-lwsock32 -lws2_32这两个参数  
 
 ## Existing problems  
-我没写多包响应，以及没有适配颜色代码  
+我没有适配颜色代码  
 也就是说在连接bukkit等启用颜色代码的服务端的时候会出一点问题  
 所以此头文件只是我下一个项目的前置，并不存在实际生产价值  
