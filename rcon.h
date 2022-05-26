@@ -63,7 +63,7 @@ public:
         {
             return packet->data;
         }
-        return (char*)"1";
+        return (char*)"0";
     }
 private:
     rconpacket* netrecvpacket(int socket)
